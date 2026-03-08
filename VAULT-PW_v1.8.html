@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VAULT パスワードマネージャー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e0e0e;--bg2:#161616;--bg3:#1e1e1e;--card:#181818;
+  --border:rgba(255,255,255,0.07);--text:#e8e8e8;--muted:#666;--muted2:#444;
+  --purple:#b06ef3;--pink:#f06292;--cyan:#4dd0e1;--green:#a3e635;
+  --yellow:#fbbf24;--blue:#60a5fa;
+  --grid:rgba(255,255,255,0.025);
+  --fd:'Noto Sans JP',sans-serif;--fm:'IBM Plex Mono',monospace;--fh:'Bebas Neue',cursive;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--fd);}
+body{background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:48px 48px;min-height:100vh;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+
+/* LOCK */
+#lock-screen{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:var(--bg);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:48px 48px;}
+.lock-card{width:400px;background:var(--card);border-radius:16px;padding:48px 40px;display:flex;flex-direction:column;align-items:center;gap:16px;animation:fadeUp .5s ease;}
+.lock-logo{font-family:var(--fh);font-size:58px;letter-spacing:10px;background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;}
+.lock-logo-sub{font-family:var(--fh);letter-spacing:3px;font-size:14px;color:var(--muted);margin-top:-4px;}
+.lock-hint{font-size:12px;color:var(--muted2);margin-top:4px;}
+.lock-hint code{color:var(--cyan);font-family:var(--fm);}
+.lock-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:13px 16px;color:var(--text);font-size:15px;outline:none;font-family:var(--fd);transition:border-color .2s;}
+.lock-input:focus{border-color:rgba(176,110,243,0.5);}
+.lock-input.error{border-color:var(--pink);animation:shake .35s ease;}
+.lock-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--purple),var(--cyan));border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--fd);transition:opacity .2s;}
+.lock-btn:hover{opacity:.85;}
+
+/* APP */
+#app{display:none;}
+.wrapper{max-width:1120px;margin:0 auto;padding:32px 24px;}
+
+/* HEADER */
+.app-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:36px;flex-wrap:wrap;gap:16px;}
+.app-logo{font-family:var(--fh);font-size:54px;letter-spacing:6px;line-height:1;}
+.app-logo .vault{background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.app-logo .rest{color:var(--text);}
+.app-title-sub{font-family:var(--fh);letter-spacing:4px;font-size:12px;color:var(--muted);margin-top:2px;}
+.header-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.btn-outline{background:transparent;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:var(--fd);transition:all .15s;}
+.btn-cat{border:1px solid rgba(77,208,225,0.3);color:var(--cyan);}
+.btn-cat:hover{background:rgba(77,208,225,0.07);}
+.btn-gen{border:1px solid rgba(251,191,36,0.35);color:var(--yellow);}
+.btn-gen:hover{background:rgba(251,191,36,0.08);}
+.btn-pw-change{border:1px solid rgba(163,230,53,0.3);color:var(--green);}
+.btn-pw-change:hover{background:rgba(163,230,53,0.07);}
+.btn-backup{border:1px solid rgba(96,165,250,0.3);color:var(--blue);}
+.btn-backup:hover{background:rgba(96,165,250,0.07);}
+.btn-add{background:linear-gradient(135deg,var(--purple),var(--cyan));border:none;border-radius:8px;padding:9px 20px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--fd);transition:opacity .15s;}
+.btn-add:hover{opacity:.85;}
+
+/* SUMMARY */
+.summary-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;}
+.scard{background:var(--card);border-radius:14px;padding:24px;position:relative;overflow:hidden;}
+.scard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.s-total::before{background:linear-gradient(90deg,var(--purple),var(--cyan));}
+.s-strong::before{background:linear-gradient(90deg,var(--green),var(--cyan));}
+.s-weak::before{background:linear-gradient(90deg,var(--pink),var(--yellow));}
+.slabel{font-size:12px;color:var(--muted);margin-bottom:10px;}
+.sval{font-size:36px;font-weight:900;line-height:1;}
+.s-total .sval{color:var(--purple);}
+.s-strong .sval{color:var(--green);}
+.s-weak .sval{color:var(--pink);}
+.snote{font-size:12px;color:var(--muted);margin-top:6px;}
+
+/* CONTROLS */
+.controls-row{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:14px;padding:16px 20px;margin-bottom:20px;flex-wrap:wrap;}
+.search-wrap{position:relative;flex:1;min-width:180px;}
+.search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 12px 9px 34px;color:var(--text);font-size:13px;outline:none;font-family:var(--fd);transition:border-color .2s;}
+.search-wrap input:focus{border-color:rgba(176,110,243,0.4);}
+.s-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;pointer-events:none;}
+.cat-tabs{display:flex;gap:6px;flex-wrap:wrap;}
+.cat-tab{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:5px 13px;color:var(--muted);font-size:12px;cursor:pointer;font-family:var(--fd);transition:all .15s;white-space:nowrap;}
+.cat-tab.active{background:rgba(176,110,243,0.15);border-color:rgba(176,110,243,0.4);color:var(--purple);}
+
+/* LIST */
+.section-card{background:var(--card);border-radius:14px;overflow:hidden;margin-bottom:16px;}
+.section-header{padding:16px 20px 12px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted);}
+.entry-row{display:grid;grid-template-columns:36px 1fr 130px 110px 80px 60px;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:background .12s;}
+.entry-row:last-child{border-bottom:none;}
+.entry-row:hover{background:rgba(255,255,255,0.03);}
+.entry-row.selected{background:rgba(176,110,243,0.07);}
+.entry-icon{width:36px;height:36px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.entry-site{font-size:14px;font-weight:500;color:var(--text);}
+.entry-user{font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.entry-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--bg3);white-space:nowrap;width:fit-content;}
+.entry-pw{font-family:var(--fm);font-size:12px;color:var(--muted);letter-spacing:2px;}
+.entry-actions{display:flex;gap:6px;justify-content:flex-end;}
+.ibtn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;width:28px;height:28px;cursor:pointer;color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.ibtn:hover{color:var(--text);border-color:rgba(255,255,255,0.15);}
+.ibtn.danger:hover{color:var(--pink);border-color:rgba(240,98,146,0.3);}
+
+/* DETAIL */
+.detail-panel{background:var(--card);border-radius:14px;padding:24px;margin-bottom:16px;animation:fadeUp .2s ease;border-left:3px solid var(--purple);}
+.detail-title{font-size:18px;font-weight:700;margin-bottom:20px;color:#fff;}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.dfield{display:flex;flex-direction:column;gap:6px;}
+.dfield.full{grid-column:1/-1;}
+.flabel{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;font-family:var(--fm);}
+.fvalrow{display:flex;align-items:center;gap:8px;}
+.fval{font-size:13px;color:var(--text);flex:1;word-break:break-all;}
+.fval.mono{font-family:var(--fm);}
+.cbtn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer;color:var(--muted);font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.cbtn.copied{background:#166534;border-color:#166534;color:#4ade80;}
+.eyebtn{background:transparent;border:none;cursor:pointer;font-size:14px;padding:2px;flex-shrink:0;}
+
+/* EMPTY */
+.empty-state{padding:60px 20px;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:8px;}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid rgba(255,255,255,0.08);border-radius:16px;width:90%;max-width:520px;max-height:88vh;overflow-y:auto;animation:fadeUp .2s ease;}
+.mhead{padding:20px 24px 16px;font-size:16px;font-weight:700;color:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.mclose{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;}
+.mbody{padding:20px 24px;display:flex;flex-direction:column;gap:16px;}
+.mfoot{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;}
+.frow{display:flex;flex-direction:column;gap:6px;}
+.flabel2{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-family:var(--fm);}
+.finput{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;font-family:var(--fd);width:100%;transition:border-color .2s;}
+.finput:focus{border-color:rgba(176,110,243,0.4);}
+.finline{display:flex;gap:8px;}
+.agbtn{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:0 14px;color:var(--yellow);cursor:pointer;flex-shrink:0;font-size:15px;}
+.chips{display:flex;flex-wrap:wrap;gap:8px;}
+.chip{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:5px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:var(--fd);transition:all .15s;}
+.chip.active{background:rgba(176,110,243,0.15);border-color:rgba(176,110,243,0.4);color:var(--purple);}
+.bcncl{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:9px 20px;color:var(--muted);cursor:pointer;font-size:14px;font-family:var(--fd);}
+.bsave{background:linear-gradient(135deg,var(--purple),var(--cyan));border:none;border-radius:8px;padding:9px 24px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--fd);transition:opacity .15s;}
+.bsave:disabled{opacity:.4;cursor:default;}
+.bsave:not(:disabled):hover{opacity:.85;}
+
+/* CATEGORY MANAGER */
+.cmgr-list{display:flex;flex-direction:column;gap:8px;}
+.cmgr-row{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
+.cmgr-icon{font-size:18px;width:28px;text-align:center;flex-shrink:0;}
+.cmgr-name{flex:1;font-size:14px;color:var(--text);}
+.cmgr-count{font-size:11px;color:var(--muted);font-family:var(--fm);margin-right:4px;}
+.icon-picker{display:flex;gap:6px;flex-wrap:wrap;}
+.icon-opt{width:32px;height:32px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.icon-opt:hover{border-color:rgba(176,110,243,0.4);}
+.icon-opt.sel{border-color:var(--purple);background:rgba(176,110,243,0.15);}
+.cat-edit-input{background:var(--bg3);border:1px solid rgba(176,110,243,0.3);border-radius:6px;padding:4px 8px;color:var(--text);font-size:14px;outline:none;font-family:var(--fd);width:130px;}
+.add-cat-row{display:flex;gap:8px;align-items:center;background:var(--bg3);border:1px solid rgba(176,110,243,0.2);border-radius:10px;padding:10px 14px;margin-top:4px;}
+.add-cat-row input{background:transparent;border:none;outline:none;color:var(--text);font-size:14px;flex:1;font-family:var(--fd);}
+.add-cat-row input::placeholder{color:var(--muted2);}
+
+/* GENERATOR */
+.gen-output{display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.gen-pw{font-family:var(--fm);font-size:14px;color:var(--text);flex:1;word-break:break-all;}
+input[type=range]{accent-color:var(--purple);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+
+/* ====== MOBILE BOTTOM NAV ====== */
+.mobile-nav{display:none;}
+
+/* ====== RESPONSIVE ====== */
+@media(max-width:768px){
+  .wrapper{padding:16px 14px 90px;}
+
+  /* Header */
+  .app-header{margin-bottom:20px;gap:12px;}
+  .app-logo{font-size:38px;letter-spacing:4px;}
+  .app-title-sub{font-size:10px;letter-spacing:2px;}
+  .header-actions{display:none;} /* ヘッダーボタンはモバイルナビに移動 */
+
+  /* Summary cards */
+  .summary-row{grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;}
+  .scard{padding:14px 12px;}
+  .sval{font-size:26px;}
+  .slabel{font-size:10px;margin-bottom:6px;}
+  .snote{font-size:10px;}
+
+  /* Controls */
+  .controls-row{
+    padding:10px 12px;
+    gap:8px;
+    flex-direction:column;
+    align-items:stretch;
+    border-radius:12px;
+  }
+  .search-wrap{
+    min-width:unset;
+    width:100%;
+    flex:none;
+  }
+  .search-wrap input{
+    width:100%;
+    box-sizing:border-box;
+    font-size:14px;
+    padding:10px 12px 10px 34px;
+  }
+  .cat-tabs{
+    display:flex;
+    flex-direction:row;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    overflow-y:visible;
+    -webkit-overflow-scrolling:touch;
+    gap:6px;
+    padding-bottom:2px;
+    width:100%;
+    box-sizing:border-box;
+  }
+  .cat-tabs::-webkit-scrollbar{display:none;}
+  .cat-tab{
+    white-space:nowrap;
+    flex-shrink:0;
+    font-size:12px;
+  }
+
+  /* Entry list - mobile card style */
+  .entry-row{
+    grid-template-columns:40px 1fr auto;
+    grid-template-rows:auto;
+    gap:8px 10px;
+    padding:14px;
+    align-items:center;
+  }
+  .entry-icon{grid-row:1/3;align-self:center;}
+  .entry-info{grid-column:2;grid-row:1;}
+  .entry-cat-col{grid-column:3;grid-row:1;align-self:start;}
+  .entry-str-col{display:none!important;}
+  .entry-pw{display:none!important;}
+  .entry-actions{grid-column:2/4;grid-row:2;justify-content:flex-end;padding-top:2px;}
+  .entry-site{font-size:15px;}
+  .entry-user{font-size:12px;}
+
+  /* Detail panel */
+  .detail-grid{grid-template-columns:1fr;}
+  .dfield.full{grid-column:1;}
+  .detail-panel{padding:16px;}
+  .detail-title{font-size:16px;margin-bottom:14px;}
+  .fval{font-size:12px;}
+
+  /* Confirm dialog full width */
+  #confirm-overlay .modal{max-width:100%;}
+
+  /* Section */
+  .section-header{padding:12px 14px 10px;}
+
+  /* Modal */
+  .overlay{align-items:flex-end;}
+  .modal{
+    width:100%;max-width:100%;
+    border-radius:20px 20px 0 0;
+    max-height:92vh;
+    animation:slideUp .25s ease;
+  }
+  .mhead{padding:16px 20px 14px;}
+  .mbody{padding:16px 20px;}
+  .mfoot{padding:14px 20px;padding-bottom:calc(14px + env(safe-area-inset-bottom));}
+
+  /* Lock screen */
+  .lock-card{width:calc(100% - 32px);padding:36px 24px;}
+  .lock-logo{font-size:44px;letter-spacing:8px;}
+
+  /* Mobile bottom navigation */
+  .mobile-nav{
+    display:flex;
+    position:fixed;bottom:0;left:0;right:0;
+    background:rgba(18,18,18,0.96);
+    backdrop-filter:blur(20px);
+    border-top:1px solid var(--border);
+    padding:10px 8px calc(10px + env(safe-area-inset-bottom));
+    gap:4px;z-index:100;
+  }
+  .mnav-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    background:transparent;border:none;cursor:pointer;
+    padding:6px 4px;border-radius:10px;
+    color:var(--muted);font-family:var(--fd);transition:all .15s;
+  }
+  .mnav-btn:active{background:rgba(255,255,255,0.06);}
+  .mnav-btn.primary{background:linear-gradient(135deg,var(--purple),var(--cyan));color:#fff;}
+  .mnav-btn.primary:active{opacity:.85;}
+  .mnav-icon{font-size:18px;line-height:1;}
+  .mnav-label{font-size:9px;letter-spacing:.5px;}
+
+  /* Cat manager wider */
+  .cmgr-row{padding:10px 10px;}
+  .cat-edit-input{width:100px;}
+
+  /* Step indicator text smaller */
+  #pwc-step1-ind,#pwc-step2-ind,#pwc-step3-ind{font-size:9px;padding:5px 2px;letter-spacing:0;}
+}
+
+@media(max-width:400px){
+  .summary-row{gap:8px;}
+  .scard{padding:12px 10px;}
+  .sval{font-size:22px;}
+  .app-logo{font-size:32px;letter-spacing:3px;}
+}
+
+@keyframes slideUp{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<!-- LOCK -->
+<div id="lock-screen">
+  <div class="lock-card">
+    <div class="lock-logo">VAULT <span style="-webkit-text-fill-color:#e8e8e8;color:#e8e8e8;">PW</span></div>
+    <div class="lock-logo-sub">パスワードマネージャー</div>
+    <input class="lock-input" type="password" id="master-input" placeholder="マスターパスワードを入力" autocomplete="off"/>
+    <button class="lock-btn" onclick="unlock()">アンロック</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+<div class="wrapper">
+
+  <div class="app-header">
+    <div>
+      <div class="app-logo">
+        <span class="vault">VAULT</span><span class="rest"> PW</span>
+      </div>
+      <div class="app-title-sub">パスワードマネージャー</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-outline btn-pw-change" onclick="openPwChangeModal()">🔑 パスワード変更</button>
+      <button class="btn-outline btn-cat" onclick="openCatModal()">⊞ カテゴリ管理</button>
+      <button class="btn-outline btn-gen" onclick="openGenModal()">⚡ パスワード生成</button>
+      <button class="btn-outline btn-backup" onclick="openBackupModal()">💾 バックアップ</button>
+      <button class="btn-add" onclick="openAddModal()">＋ 追加</button>
+    </div>
+  </div>
+
+  <div class="summary-row">
+    <div class="scard s-total">
+      <div class="slabel">総エントリ数</div>
+      <div class="sval" id="stat-total">0</div>
+      <div class="snote">登録済みパスワード</div>
+    </div>
+    <div class="scard s-strong">
+      <div class="slabel">強いパスワード</div>
+      <div class="sval" id="stat-strong">0</div>
+      <div class="snote">強度 4〜5</div>
+    </div>
+    <div class="scard s-weak">
+      <div class="slabel">要注意</div>
+      <div class="sval" id="stat-weak">0</div>
+      <div class="snote">強度 1〜2</div>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <div class="search-wrap">
+      <span class="s-icon">⌕</span>
+      <input type="text" id="search-input" placeholder="サイト名・ユーザー名で検索..." oninput="renderList()"/>
+    </div>
+    <div class="cat-tabs" id="cat-tabs"></div>
+  </div>
+
+  <div id="detail-panel" style="display:none;"></div>
+  <div class="section-card">
+    <div class="section-header" id="list-count">— エントリ</div>
+    <div id="entry-list"></div>
+  </div>
+
+</div>
+</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<nav class="mobile-nav">
+  <button class="mnav-btn" onclick="openPwChangeModal()">
+    <span class="mnav-icon">🔑</span>
+    <span class="mnav-label">PW変更</span>
+  </button>
+  <button class="mnav-btn" onclick="openCatModal()">
+    <span class="mnav-icon">⊞</span>
+    <span class="mnav-label">カテゴリ</span>
+  </button>
+  <button class="mnav-btn primary" onclick="openAddModal()">
+    <span class="mnav-icon" style="font-size:22px;font-weight:300;">＋</span>
+    <span class="mnav-label">追加</span>
+  </button>
+  <button class="mnav-btn" onclick="openGenModal()">
+    <span class="mnav-icon">⚡</span>
+    <span class="mnav-label">生成</span>
+  </button>
+  <button class="mnav-btn" onclick="openBackupModal()">
+    <span class="mnav-icon">💾</span>
+    <span class="mnav-label">バックアップ</span>
+  </button>
+</nav>
+
+<!-- ADD/EDIT MODAL -->
+<div class="overlay" id="entry-modal">
+  <div class="modal">
+    <div class="mhead">
+      <span id="modal-title">＋ 新しいエントリ</span>
+      <button class="mclose" onclick="closeModal('entry-modal')">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="frow"><div class="flabel2">サイト名 *</div><input class="finput" id="f-site" placeholder="例: Google"/></div>
+      <div class="frow"><div class="flabel2">ユーザー名 / メール *</div><input class="finput" id="f-username" placeholder="例: user@example.com"/></div>
+      <div class="frow">
+        <div class="flabel2">パスワード *</div>
+        <div class="finline">
+          <input class="finput" id="f-password" type="text" placeholder="パスワードを入力" oninput="updateFormStrength()"/>
+          <button class="agbtn" onclick="autoGenPassword()" title="自動生成">⚡</button>
+        </div>
+        <div id="form-strength-bar" style="display:none;margin-top:6px;"></div>
+      </div>
+      <div class="frow"><div class="flabel2">カテゴリ</div><div class="chips" id="form-cat-chips"></div></div>
+      <div class="frow"><div class="flabel2">URL</div><input class="finput" id="f-url" placeholder="https://..."/></div>
+      <div class="frow"><div class="flabel2">メモ</div><input class="finput" id="f-note" placeholder="任意のメモ"/></div>
+    </div>
+    <div class="mfoot">
+      <button class="bcncl" onclick="closeModal('entry-modal')">キャンセル</button>
+      <button class="bsave" id="modal-save-btn" onclick="saveEntry()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- CATEGORY MANAGER -->
+<div class="overlay" id="cat-modal">
+  <div class="modal" style="max-width:500px;">
+    <div class="mhead">
+      <span>⊞ カテゴリ管理</span>
+      <button class="mclose" onclick="closeModal('cat-modal')">✕</button>
+    </div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">カテゴリの追加・編集・削除ができます。</div>
+      <div class="cmgr-list" id="cmgr-list"></div>
+      <div style="margin-top:16px;">
+        <div class="flabel2" style="margin-bottom:8px;">新しいカテゴリを追加</div>
+        <div class="add-cat-row">
+          <span id="new-icon-preview" style="font-size:18px;flex-shrink:0;">🏷️</span>
+          <input id="new-cat-name" placeholder="カテゴリ名（例: ゲーム）"/>
+          <button class="bsave" style="padding:7px 14px;font-size:13px;" onclick="addCategory()">追加</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin:10px 0 6px;">アイコンを選択</div>
+        <div class="icon-picker" id="icon-picker"></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="bsave" onclick="closeModal('cat-modal')">完了</button></div>
+  </div>
+</div>
+
+<!-- BACKUP MODAL -->
+<div class="overlay" id="backup-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="mhead">
+      <span>💾 バックアップ管理</span>
+      <button class="mclose" onclick="closeModal('backup-modal')">✕</button>
+    </div>
+    <div class="mbody">
+
+      <!-- Storage status -->
+      <div id="backup-storage-status" style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);">
+        <span style="font-size:24px;" id="backup-status-icon">⏳</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;" id="backup-status-title">確認中...</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="backup-status-desc"></div>
+        </div>
+      </div>
+
+      <!-- Export section -->
+      <div style="background:var(--bg3);border-radius:12px;padding:16px;border:1px solid rgba(96,165,250,0.15);">
+        <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:4px;">📤 エクスポート</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">専用パスワードを設定して暗号化ファイルをダウンロードします。このパスワードはインポート時に必要です。</div>
+        <div class="frow" style="margin-bottom:10px;">
+          <div class="flabel2">バックアップ用パスワード</div>
+          <div style="position:relative;">
+            <input class="finput" type="password" id="exp-pw1" placeholder="バックアップ用パスワードを設定" autocomplete="new-password" style="padding-right:44px;" oninput="expCheckMatch()"/>
+            <button onclick="toggleVis('exp-pw1',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);">👁</button>
+          </div>
+        </div>
+        <div class="frow" style="margin-bottom:12px;">
+          <div class="flabel2">パスワード確認</div>
+          <div style="position:relative;">
+            <input class="finput" type="password" id="exp-pw2" placeholder="もう一度入力" autocomplete="new-password" style="padding-right:44px;" oninput="expCheckMatch()"/>
+            <button onclick="toggleVis('exp-pw2',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);">👁</button>
+          </div>
+          <div id="exp-match-msg" style="font-size:12px;margin-top:4px;display:none;"></div>
+        </div>
+        <button class="bsave" id="exp-btn" style="width:100%;background:linear-gradient(135deg,var(--blue),var(--cyan));opacity:.4;cursor:not-allowed;" onclick="exportBackup()" disabled>
+          💾 暗号化バックアップをダウンロード
+        </button>
+      </div>
+
+      <!-- Import section -->
+      <div style="background:var(--bg3);border-radius:12px;padding:16px;border:1px solid rgba(240,98,146,0.15);">
+        <div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:4px;">📥 インポート</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">バックアップファイルとエクスポート時に設定したパスワードで復元します。<span style="color:var(--pink);">現在のデータは上書きされます。</span></div>
+        <div class="frow" style="margin-bottom:10px;">
+          <div class="flabel2">バックアップ用パスワード</div>
+          <div style="position:relative;">
+            <input class="finput" type="password" id="imp-pw" placeholder="エクスポート時のパスワードを入力" autocomplete="off" style="padding-right:44px;"/>
+            <button onclick="toggleVis('imp-pw',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);">👁</button>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:rgba(240,98,146,0.08);border:1px dashed rgba(240,98,146,0.3);border-radius:8px;cursor:pointer;font-size:13px;color:var(--pink);">
+          📂 バックアップファイルを選択
+          <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="handleImportFile(event)"/>
+        </label>
+        <div id="import-status" style="display:none;margin-top:10px;font-size:12px;padding:10px;border-radius:8px;"></div>
+      </div>
+
+      <div style="font-size:11px;color:var(--muted2);line-height:1.7;padding:0 2px;">
+        🔒 データはAES-256-GCMで暗号化されます。バックアップ用パスワードを忘れると復元できません。<br>
+        ⚠️ ブラウザのキャッシュ削除でローカルデータが消える場合があります。定期的にバックアップを推奨します。
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="bsave" onclick="closeModal('backup-modal')">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORD CHANGE MODAL -->
+<div class="overlay" id="pw-change-modal">
+  <div class="modal" style="max-width:440px;">
+    <div class="mhead">
+      <span>🔑 マスターパスワード変更</span>
+      <button class="mclose" onclick="closeModal('pw-change-modal')">✕</button>
+    </div>
+    <div class="mbody">
+      <div style="font-size:12px;color:var(--muted);padding:10px 14px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--green);">
+        変更後は新しいパスワードでロック解除してください。
+      </div>
+      <!-- Step indicator -->
+      <div style="display:flex;gap:0;margin:4px 0;">
+        <div id="pwc-step1-ind" style="flex:1;text-align:center;font-size:11px;font-family:var(--fm);padding:6px;border-radius:6px 0 0 6px;background:rgba(176,110,243,0.15);color:var(--purple);border:1px solid rgba(176,110,243,0.3);">① 現在のPW確認</div>
+        <div id="pwc-step2-ind" style="flex:1;text-align:center;font-size:11px;font-family:var(--fm);padding:6px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-left:none;">② 新しいPW入力</div>
+        <div id="pwc-step3-ind" style="flex:1;text-align:center;font-size:11px;font-family:var(--fm);padding:6px;border-radius:0 6px 6px 0;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-left:none;">③ 新しいPW確認</div>
+      </div>
+
+      <!-- Step 1: current password -->
+      <div id="pwc-step1">
+        <div class="frow">
+          <div class="flabel2">現在のパスワード</div>
+          <div style="position:relative;">
+            <input class="finput" type="password" id="pwc-current" placeholder="現在のパスワードを入力" autocomplete="off"
+              style="padding-right:44px;" oninput="pwcClearError()"/>
+            <button onclick="togglePwcVis('pwc-current',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);">👁</button>
+          </div>
+          <div id="pwc-current-error" style="font-size:12px;color:var(--pink);display:none;margin-top:4px;">⚠ パスワードが違います</div>
+        </div>
+      </div>
+
+      <!-- Step 2: new password -->
+      <div id="pwc-step2" style="display:none;">
+        <div class="frow">
+          <div class="flabel2">新しいパスワード</div>
+          <div style="position:relative;">
+            <input class="finput" type="password" id="pwc-new" placeholder="新しいパスワードを入力" autocomplete="new-password"
+              style="padding-right:44px;" oninput="pwcUpdateStrength()"/>
+            <button onclick="togglePwcVis('pwc-new',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);">👁</button>
+          </div>
+          <div id="pwc-strength" style="margin-top:6px;display:none;"></div>
+          <div id="pwc-new-error" style="font-size:12px;color:var(--pink);display:none;margin-top:4px;">⚠ パスワードを入力してください</div>
+        </div>
+      </div>
+
+      <!-- Step 3: confirm new password -->
+      <div id="pwc-step3" style="display:none;">
+        <div class="frow">
+          <div class="flabel2">新しいパスワード（確認）</div>
+          <div style="position:relative;">
+            <input class="finput" type="password" id="pwc-confirm" placeholder="もう一度入力してください" autocomplete="new-password"
+              style="padding-right:44px;" oninput="pwcCheckMatch()"/>
+            <button onclick="togglePwcVis('pwc-confirm',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);">👁</button>
+          </div>
+          <div id="pwc-match-msg" style="font-size:12px;margin-top:4px;display:none;"></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="mfoot">
+      <button class="bcncl" onclick="closeModal('pw-change-modal')">キャンセル</button>
+      <button id="pwc-next-btn" class="bsave" onclick="pwcNext()">次へ →</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM CONFIRM DIALOG -->
+<div class="overlay" id="confirm-overlay" style="z-index:400;">
+  <div class="modal" style="max-width:380px;">
+    <div class="mhead" style="border-bottom:none;padding-bottom:8px;">
+      <span style="font-family:var(--fh);font-size:26px;letter-spacing:3px;color:var(--pink);">Really?</span>
+    </div>
+    <div class="mbody" style="padding-top:0;gap:12px;">
+      <div id="confirm-msg" style="font-size:14px;color:var(--muted);line-height:1.6;"></div>
+      <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid rgba(240,98,146,0.2);border-radius:10px;padding:10px 14px;">
+        <span style="font-size:20px;">⚠️</span>
+        <span style="font-size:12px;color:var(--pink);">この操作は取り消せません</span>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="bcncl" onclick="confirmCancel()">キャンセル</button>
+      <button style="background:linear-gradient(135deg,var(--pink),#ff6b00);border:none;border-radius:8px;padding:9px 24px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--fd);" onclick="confirmOk()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- GENERATOR -->
+<div class="overlay" id="gen-modal">
+  <div class="modal" style="max-width:440px;">
+    <div class="mhead">
+      <span>⚡ パスワード生成</span>
+      <button class="mclose" onclick="closeModal('gen-modal')">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="gen-output">
+        <span class="gen-pw" id="gen-pw-text">—</span>
+        <button class="cbtn" id="gen-copy-btn" onclick="copyGen()">⎘</button>
+      </div>
+      <div id="gen-strength-bar" style="margin-top:0;"></div>
+      <div class="frow">
+        <div class="flabel2">文字数: <span id="gen-len-label">16</span></div>
+        <input type="range" min="8" max="32" value="16" id="gen-length" oninput="onGenChange()"/>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="chip active" id="opt-upper" onclick="toggleOpt('upper')">大文字 A-Z</button>
+        <button class="chip active" id="opt-lower" onclick="toggleOpt('lower')">小文字 a-z</button>
+        <button class="chip active" id="opt-numbers" onclick="toggleOpt('numbers')">数字 0-9</button>
+        <button class="chip active" id="opt-symbols" onclick="toggleOpt('symbols')">記号 !@#</button>
+      </div>
+      <button class="bsave" style="width:100%;" onclick="regenPassword()">🔄 再生成</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== STATE ======
+let CATS = [
+  {id:'all',     label:'すべて',         icon:'⬡', protected:true},
+  {id:'none',    label:'カテゴリなし',   icon:'◯', protected:true},
+  {id:'sns',     label:'SNS',            icon:'◈'},
+  {id:'bank',    label:'銀行・金融',     icon:'◆'},
+  {id:'shopping',label:'ショッピング',   icon:'◇'},
+  {id:'work',    label:'仕事',           icon:'▣'},
+  {id:'other',   label:'その他',         icon:'○'},
+];
+const CAT_COLORS = {sns:'#b06ef3',bank:'#60a5fa',shopping:'#f06292',work:'#4dd0e1',other:'#a3e635',none:'#555566'};
+function catColor(id){return CAT_COLORS[id]||'#a3e635';}
+const ICONS = ['🎮','📱','💻','🏠','🎵','📚','✈️','🏋️','🛒','💰','🔑','🎯','📧','🌐','🏦','🎬','🍔','❤️','🌟','🔒','⚙️','🎨','🏥','🚗','🎪','🧩','🦁','🌈'];
+const STR = [{l:'非常に弱い',c:'#f43f5e'},{l:'弱い',c:'#fb923c'},{l:'普通',c:'#fbbf24'},{l:'強い',c:'#a3e635'},{l:'非常に強い',c:'#4dd0e1'}];
+
+let entries = [
+  {id:1,site:'Twitter / X',username:'yamada@example.com',password:'Tw!tt3r_S3cur3#',category:'sns',url:'https://twitter.com',note:'メインアカウント',createdAt:'2024-01-15'},
+  {id:2,site:'三菱UFJ銀行',username:'user12345678',password:'B@nk_Str0ng!2024',category:'bank',url:'https://direct.bk.mufg.jp',note:'',createdAt:'2024-02-01'},
+  {id:3,site:'Amazon',username:'yamada@example.com',password:'Am@z0n_Buy!ng#99',category:'shopping',url:'https://amazon.co.jp',note:'プライム会員',createdAt:'2024-03-10'},
+  {id:4,site:'Slack (会社)',username:'yamada@company.co.jp',password:'Sl@ck_W0rk_2024!',category:'work',url:'https://company.slack.com',note:'社内チャット',createdAt:'2024-04-05'},
+];
+
+let activeCat='all', selId=null, editId=null, formCat='none';
+let copiedKey='', showPwSet=new Set(), genOpts={upper:true,lower:true,numbers:true,symbols:true};
+let newIcon='🏷️', editIcon=null, editingCatId=null;
+let masterPassword='VAULT'; // 変更可能なマスターパスワード
+
+// ====== UTILS ======
+function pws(pw){
+  if(!pw)return 0;let s=0;
+  if(pw.length>=8)s++;if(pw.length>=12)s++;
+  if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw))s++;if(/\d/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;
+  return Math.min(s,5);
+}
+function genPw(len,opts){
+  let c='';
+  if(opts.upper)c+='ABCDEFGHIJKLMNOPQRSTUVWXYZ';if(opts.lower)c+='abcdefghijklmnopqrstuvwxyz';
+  if(opts.numbers)c+='0123456789';if(opts.symbols)c+='!@#$%^&*()_+-=[]{}|;:,.<>?';
+  if(!c)c='abcdefghijklmnopqrstuvwxyz0123456789';
+  return Array.from({length:len},()=>c[Math.floor(Math.random()*c.length)]).join('');
+}
+function sbar(pw){
+  const s=pws(pw),info=STR[s-1];
+  return `<div style="display:flex;align-items:center;gap:4px;width:100%;">${[1,2,3,4,5].map(i=>`<div style="height:3px;flex:1;border-radius:2px;background:${i<=s?(info?.c||'#666'):'rgba(255,255,255,0.08)'}"></div>`).join('')}<span style="font-size:10px;color:#666;margin-left:8px;white-space:nowrap;">${info?.l||''}</span></div>`;
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function copyText(txt,key){navigator.clipboard.writeText(txt).then(()=>{copiedKey=key;render();setTimeout(()=>{copiedKey='';render();},1500);});}
+
+// ====== LOCK ======
+document.getElementById('master-input').addEventListener('keydown',e=>{if(e.key==='Enter')unlock();});
+async function unlock(){
+  const v=document.getElementById('master-input').value;
+  // First try to load from localStorage with entered password
+  const saved = await loadFromStorage(v);
+  if(saved){
+    // saved.masterPassword is the canonical password
+    if(saved.masterPassword && v !== saved.masterPassword){
+      // wrong password - decryption succeeded but masterPassword inside doesn't match
+      // (shouldn't normally happen, but guard)
+    }
+    masterPassword = v;
+    document.getElementById('lock-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    // Apply loaded data
+    if(saved.entries) entries = saved.entries;
+    if(saved.CATS){
+      const protectedCats = CATS.filter(c=>c.protected);
+      CATS = [...protectedCats, ...saved.CATS];
+    }
+    if(saved.masterPassword) masterPassword = saved.masterPassword;
+    buildIconPicker();buildCatTabs();buildFormCatChips();render();
+  } else if(v===masterPassword && !localStorage.getItem(STORAGE_KEY)){
+    // No saved data yet - first launch with default password
+    document.getElementById('lock-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    init();
+  } else {
+    const el=document.getElementById('master-input');
+    el.classList.add('error');setTimeout(()=>el.classList.remove('error'),400);
+  }
+}
+
+// ====== CRYPTO (Web Crypto API / AES-GCM) ======
+const STORAGE_KEY = 'vault_pw_data';
+
+async function deriveKey(password, salt){
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations:200000, hash:'SHA-256'},
+    keyMaterial, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']
+  );
+}
+
+async function encryptData(password, plaintext){
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const key  = await deriveKey(password, salt);
+  const enc  = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, enc.encode(plaintext));
+  // pack: salt(16) + iv(12) + ciphertext
+  const buf = new Uint8Array(16 + 12 + ciphertext.byteLength);
+  buf.set(salt, 0); buf.set(iv, 16); buf.set(new Uint8Array(ciphertext), 28);
+  return btoa(String.fromCharCode(...buf));
+}
+
+async function decryptData(password, b64){
+  try {
+    const buf  = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+    const salt = buf.slice(0, 16);
+    const iv   = buf.slice(16, 28);
+    const ct   = buf.slice(28);
+    const key  = await deriveKey(password, salt);
+    const plain = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ct);
+    return new TextDecoder().decode(plain);
+  } catch(e){ return null; }
+}
+
+// ====== PERSIST: save/load ======
+async function saveToStorage(){
+  try {
+    const data = JSON.stringify({entries, CATS: CATS.filter(c=>!c.protected), masterPassword});
+    const enc  = await encryptData(masterPassword, data);
+    localStorage.setItem(STORAGE_KEY, enc);
+  } catch(e){ console.warn('Save failed', e); }
+}
+
+async function loadFromStorage(password){
+  const enc = localStorage.getItem(STORAGE_KEY);
+  if(!enc) return null;
+  const json = await decryptData(password, enc);
+  if(!json) return null;
+  try { return JSON.parse(json); } catch(e){ return null; }
+}
+
+// ====== INIT ======
+async function init(){
+  const saved = await loadFromStorage(masterPassword);
+  if(saved){
+    if(saved.entries) entries = saved.entries;
+    if(saved.CATS){
+      // merge: keep protected cats at top, then saved custom cats
+      const protectedCats = CATS.filter(c=>c.protected);
+      CATS = [...protectedCats, ...saved.CATS];
+    }
+    if(saved.masterPassword) masterPassword = saved.masterPassword;
+  }
+  buildIconPicker(); buildCatTabs(); buildFormCatChips(); render();
+}
+
+// auto-save after every data mutation
+function saveAndRender(){saveToStorage();render();}
+
+// ====== BACKUP MODAL ======
+function openBackupModal(){
+  updateBackupStatus();
+  document.getElementById('import-status').style.display='none';
+  document.getElementById('exp-pw1').value='';
+  document.getElementById('exp-pw2').value='';
+  document.getElementById('exp-match-msg').style.display='none';
+  document.getElementById('exp-btn').disabled=true;
+  document.getElementById('exp-btn').style.opacity='.4';
+  document.getElementById('exp-btn').style.cursor='not-allowed';
+  document.getElementById('imp-pw').value='';
+  document.getElementById('backup-modal').classList.add('open');
+}
+
+function updateBackupStatus(){
+  const has = !!localStorage.getItem(STORAGE_KEY);
+  const icon  = document.getElementById('backup-status-icon');
+  const title = document.getElementById('backup-status-title');
+  const desc  = document.getElementById('backup-status-desc');
+  if(has){
+    icon.textContent='✅'; title.textContent='ローカル保存済み'; title.style.color='var(--green)';
+    desc.textContent='データは暗号化されてブラウザに保存されています。';
+  } else {
+    icon.textContent='⚠️'; title.textContent='まだ保存されていません'; title.style.color='var(--yellow)';
+    desc.textContent='エントリを追加すると自動保存されます。';
+  }
+}
+
+// Export password match check
+function expCheckMatch(){
+  const p1=document.getElementById('exp-pw1').value;
+  const p2=document.getElementById('exp-pw2').value;
+  const msg=document.getElementById('exp-match-msg');
+  const btn=document.getElementById('exp-btn');
+  if(!p1||!p2){msg.style.display='none';btn.disabled=true;btn.style.opacity='.4';btn.style.cursor='not-allowed';return;}
+  msg.style.display='block';
+  if(p1===p2){
+    msg.innerHTML='<span style="color:var(--green)">✓ 一致しています</span>';
+    btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';
+  } else {
+    msg.innerHTML='<span style="color:var(--pink)">⚠ パスワードが一致しません</span>';
+    btn.disabled=true;btn.style.opacity='.4';btn.style.cursor='not-allowed';
+  }
+}
+
+function toggleVis(inputId,btn){
+  const inp=document.getElementById(inputId);
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  btn.textContent=show?'🙈':'👁';
+}
+
+// ====== EXPORT ======
+async function exportBackup(){
+  const pw=document.getElementById('exp-pw1').value;
+  if(!pw) return;
+  const data = JSON.stringify({
+    version:1, exportedAt:new Date().toISOString(),
+    entries, CATS:CATS.filter(c=>!c.protected)
+  });
+  const enc = await encryptData(pw, data);
+  const payload = JSON.stringify({vault_pw_backup:true, version:1, data:enc});
+  const blob = new Blob([payload],{type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().split('T')[0];
+  a.href=url; a.download=`vault-pw-backup-${date}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  // Reset fields
+  document.getElementById('exp-pw1').value='';
+  document.getElementById('exp-pw2').value='';
+  document.getElementById('exp-match-msg').style.display='none';
+  document.getElementById('exp-btn').disabled=true;
+  document.getElementById('exp-btn').style.opacity='.4';
+  document.getElementById('exp-btn').style.cursor='not-allowed';
+  showToast('💾 バックアップをダウンロードしました');
+}
+
+// ====== IMPORT ======
+async function handleImportFile(event){
+  const file=event.target.files[0]; if(!file) return;
+  const pw=document.getElementById('imp-pw').value;
+  const statusEl=document.getElementById('import-status');
+  statusEl.style.display='block';
+
+  const setStatus=(bg,border,color,text)=>{
+    statusEl.style.background=bg; statusEl.style.border=`1px solid ${border}`;
+    statusEl.style.color=color; statusEl.textContent=text;
+  };
+
+  if(!pw){
+    setStatus('rgba(251,191,36,0.08)','rgba(251,191,36,0.2)','var(--yellow)','⚠ パスワードを入力してください');
+    event.target.value=''; return;
+  }
+  setStatus('rgba(251,191,36,0.08)','rgba(251,191,36,0.2)','var(--yellow)','⏳ 復号中...');
+  try {
+    const text=await file.text();
+    const parsed=JSON.parse(text);
+    if(!parsed.vault_pw_backup || !parsed.data) throw new Error('invalid');
+    const json=await decryptData(pw, parsed.data);
+    if(!json){
+      setStatus('rgba(240,98,146,0.08)','rgba(240,98,146,0.2)','var(--pink)','❌ パスワードが違うか、ファイルが破損しています');
+      event.target.value=''; return;
+    }
+    const data=JSON.parse(json);
+    if(data.entries) entries=data.entries;
+    if(data.CATS){ const p=CATS.filter(c=>c.protected); CATS=[...p,...data.CATS]; }
+    selId=null; activeCat='all';
+    await saveToStorage();
+    buildCatTabs(); buildFormCatChips(); render(); updateBackupStatus();
+    setStatus('rgba(163,230,53,0.08)','rgba(163,230,53,0.2)','var(--green)',`✅ ${entries.length} 件のエントリを復元しました`);
+    document.getElementById('imp-pw').value='';
+  } catch(e){
+    setStatus('rgba(240,98,146,0.08)','rgba(240,98,146,0.2)','var(--pink)','❌ ファイルの読み込みに失敗しました');
+  }
+  event.target.value='';
+}
+
+// ====== CAT TABS ======
+function buildCatTabs(){
+  document.getElementById('cat-tabs').innerHTML=CATS.map(c=>`
+    <button class="cat-tab${activeCat===c.id?' active':''}" onclick="setCat('${c.id}')">
+      ${c.icon} ${esc(c.label)} <span style="opacity:.5;">${c.id==='all'?entries.length:entries.filter(e=>e.category===c.id).length}</span>
+    </button>`).join('');
+}
+function setCat(id){activeCat=id;selId=null;buildCatTabs();render();}
+
+// ====== FORM CHIPS ======
+function buildFormCatChips(){
+  document.getElementById('form-cat-chips').innerHTML=CATS.filter(c=>c.id!=='all').map(c=>`
+    <button class="chip${formCat===c.id?' active':''}" onclick="setFormCat('${c.id}')">${c.icon} ${esc(c.label)}</button>`).join('');
+}
+function setFormCat(id){formCat=id;buildFormCatChips();}
+
+// ====== RENDER ======
+function render(){updateStats();renderDetail();renderList();}
+function updateStats(){
+  document.getElementById('stat-total').textContent=entries.length;
+  document.getElementById('stat-strong').textContent=entries.filter(e=>pws(e.password)>=4).length;
+  document.getElementById('stat-weak').textContent=entries.filter(e=>pws(e.password)<=2).length;
+}
+function renderList(){
+  const q=document.getElementById('search-input').value.toLowerCase();
+  const list=entries.filter(e=>{
+    const mc=activeCat==='all'||e.category===activeCat;
+    const mq=!q||e.site.toLowerCase().includes(q)||e.username.toLowerCase().includes(q);
+    return mc&&mq;
+  });
+  document.getElementById('list-count').textContent=`${list.length} エントリ`;
+  if(!list.length){document.getElementById('entry-list').innerHTML=`<div class="empty-state"><div style="font-size:40px">🔒</div><div>エントリが見つかりません</div></div>`;return;}
+  document.getElementById('entry-list').innerHTML=list.map(e=>{
+    const cat=CATS.find(c=>c.id===e.category)||CATS.find(c=>c.id==='none');
+    const s=pws(e.password),si=STR[s-1];
+    const segs=[1,2,3,4,5].map(i=>`<div style="height:4px;width:16px;border-radius:2px;flex:none;background:${i<=s?(si?.c||'#444'):'rgba(255,255,255,0.08)'}"></div>`).join('');
+    const col=catColor(e.category);
+    return `<div class="entry-row${selId===e.id?' selected':''}" onclick="selEntry(${e.id})">
+      <div class="entry-icon">${cat.icon}</div>
+      <div class="entry-info">
+        <div class="entry-site">${esc(e.site)}</div>
+        <div class="entry-user">${esc(e.username)}</div>
+      </div>
+      <div class="entry-cat-col"><span class="entry-badge" style="border:1px solid ${col}33;color:${col}">${esc(cat.label)}</span></div>
+      <div class="entry-str-col" style="display:flex;gap:3px;align-items:center;">${segs}</div>
+      <div class="entry-pw">${'•'.repeat(Math.min(e.password.length,10))}</div>
+      <div class="entry-actions">
+        <button class="ibtn" onclick="event.stopPropagation();openEditModal(${e.id})" title="編集">✎</button>
+        <button class="ibtn danger" onclick="event.stopPropagation();delEntry(${e.id})" title="削除">✕</button>
+      </div></div>`;
+  }).join('');
+}
+function selEntry(id){selId=selId===id?null:id;if(selId!==id)showPwSet.delete(id);renderDetail();renderList();}
+function renderDetail(){
+  const panel=document.getElementById('detail-panel');
+  if(!selId){panel.style.display='none';return;}
+  const e=entries.find(x=>x.id===selId);if(!e){panel.style.display='none';return;}
+  const sp=showPwSet.has(e.id);
+  panel.style.display='block';
+  panel.innerHTML=`<div class="detail-panel">
+    <div class="detail-title">🔑 ${esc(e.site)}</div>
+    <div class="detail-grid">
+      <div class="dfield"><div class="flabel">ユーザー名 / メール</div>
+        <div class="fvalrow"><span class="fval">${esc(e.username)}</span>
+          <button class="cbtn${copiedKey==='u'+e.id?' copied':''}" onclick="copyText(entries.find(x=>x.id===${e.id}).username,'u${e.id}')">${copiedKey==='u'+e.id?'✓':'⎘'}</button></div></div>
+      <div class="dfield"><div class="flabel">パスワード</div>
+        <div class="fvalrow">
+          <span class="fval mono" style="letter-spacing:${sp?1:3}px">${sp?esc(e.password):'•'.repeat(Math.min(e.password.length,20))}</span>
+          <button class="eyebtn" onclick="togglePw(${e.id})">${sp?'👁':'👁‍🗨'}</button>
+          <button class="cbtn${copiedKey==='p'+e.id?' copied':''}" onclick="copyText(entries.find(x=>x.id===${e.id}).password,'p${e.id}')">${copiedKey==='p'+e.id?'✓':'⎘'}</button></div>
+        ${sbar(e.password)}</div>
+      ${e.url?`<div class="dfield full"><div class="flabel">URL</div>
+        <div class="fvalrow"><a href="${esc(e.url)}" target="_blank" class="fval" style="color:var(--cyan);text-decoration:none;">${esc(e.url)}</a>
+          <button class="cbtn${copiedKey==='url'+e.id?' copied':''}" onclick="copyText(entries.find(x=>x.id===${e.id}).url,'url${e.id}')">${copiedKey==='url'+e.id?'✓':'⎘'}</button></div></div>`:''}
+      ${e.note?`<div class="dfield full"><div class="flabel">メモ</div><span class="fval" style="color:var(--muted)">${esc(e.note)}</span></div>`:''}
+      <div class="dfield"><div class="flabel">作成日</div><span class="fval mono" style="font-size:12px">${esc(e.createdAt)}</span></div>
+    </div></div>`;
+}
+function togglePw(id){showPwSet.has(id)?showPwSet.delete(id):showPwSet.add(id);renderDetail();}
+
+// ====== ENTRY CRUD ======
+function openAddModal(){
+  editId=null;formCat='none';
+  document.getElementById('modal-title').textContent='＋ 新しいエントリ';
+  document.getElementById('modal-save-btn').textContent='保存';
+  ['f-site','f-username','f-password','f-url','f-note'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('form-strength-bar').style.display='none';
+  buildFormCatChips();document.getElementById('entry-modal').classList.add('open');
+}
+function openEditModal(id){
+  const e=entries.find(x=>x.id===id);if(!e)return;
+  editId=id;formCat=e.category;
+  document.getElementById('modal-title').textContent='✎ エントリを編集';
+  document.getElementById('modal-save-btn').textContent='更新';
+  document.getElementById('f-site').value=e.site;document.getElementById('f-username').value=e.username;
+  document.getElementById('f-password').value=e.password;document.getElementById('f-url').value=e.url||'';
+  document.getElementById('f-note').value=e.note||'';
+  updateFormStrength();buildFormCatChips();document.getElementById('entry-modal').classList.add('open');
+}
+function saveEntry(){
+  const site=document.getElementById('f-site').value.trim();
+  const username=document.getElementById('f-username').value.trim();
+  const password=document.getElementById('f-password').value.trim();
+  if(!site||!username||!password)return;
+  const url=document.getElementById('f-url').value.trim();
+  const note=document.getElementById('f-note').value.trim();
+  if(editId){entries=entries.map(e=>e.id===editId?{...e,site,username,password,category:formCat,url,note}:e);}
+  else{entries.push({id:Date.now(),site,username,password,category:formCat,url,note,createdAt:new Date().toISOString().split('T')[0]});}
+  closeModal('entry-modal');buildCatTabs();saveToStorage();render();
+}
+function delEntry(id){
+  const e=entries.find(x=>x.id===id);if(!e)return;
+  showConfirm(
+    `「<strong style="color:var(--text)">${esc(e.site)}</strong>」のエントリを削除しますか？`,
+    ()=>{
+      entries=entries.filter(x=>x.id!==id);
+      if(selId===id)selId=null;
+      buildCatTabs();saveToStorage();render();
+    }
+  );
+}
+function autoGenPassword(){document.getElementById('f-password').value=genPw(16,{upper:true,lower:true,numbers:true,symbols:true});updateFormStrength();}
+function updateFormStrength(){
+  const pw=document.getElementById('f-password').value;
+  const bar=document.getElementById('form-strength-bar');
+  if(!pw){bar.style.display='none';return;}bar.style.display='block';bar.innerHTML=sbar(pw);
+}
+
+// ====== CATEGORY MANAGER ======
+function openCatModal(){editingCatId=null;editIcon=null;renderCatMgr();document.getElementById('cat-modal').classList.add('open');}
+function renderCatMgr(){
+  const el=document.getElementById('cmgr-list');
+  el.innerHTML=CATS.filter(c=>c.id!=='all').map(cat=>{
+    const cnt=entries.filter(e=>e.category===cat.id).length;
+    if(editingCatId===cat.id){
+      return `<div>
+        <div class="cmgr-row">
+          <span class="cmgr-icon" id="edit-icon-disp">${cat.icon}</span>
+          <input class="cat-edit-input" id="edit-cat-name" value="${esc(cat.label)}" placeholder="カテゴリ名"/>
+          <span class="cmgr-count" style="margin-left:auto">${cnt}件</span>
+          <button class="ibtn" style="color:var(--green)" data-action="save-cat" data-id="${cat.id}" title="保存">✓</button>
+          <button class="ibtn" data-action="cancel-cat" title="キャンセル">✕</button>
+        </div>
+        <div class="icon-picker" id="edit-icon-picker" style="padding:8px 4px;">${
+          ICONS.map(ic=>`<div class="icon-opt${(editIcon||cat.icon)===ic?' sel':''}" data-action="edit-icon" data-icon="${ic}">${ic}</div>`).join('')
+        }</div></div>`;
+    }
+    const canDel=!cat.protected;
+    return `<div class="cmgr-row">
+      <span class="cmgr-icon">${cat.icon}</span>
+      <span class="cmgr-name">${esc(cat.label)}</span>
+      <span class="cmgr-count">${cnt}件</span>
+      <button class="ibtn" data-action="${canDel?'edit-cat':''}" data-id="${cat.id}" title="${canDel?'編集':'編集不可'}" style="${canDel?'':'opacity:.3;cursor:not-allowed;'}">✎</button>
+      <button class="ibtn danger" data-action="${canDel?'del-cat':''}" data-id="${cat.id}" title="${canDel?'削除':'削除不可'}" style="${canDel?'':'opacity:.3;cursor:not-allowed;'}">✕</button>
+    </div>`;
+  }).join('');
+}
+function startEditCat(id){editingCatId=id;editIcon=null;renderCatMgr();}
+function cancelEditCat(){editingCatId=null;editIcon=null;renderCatMgr();}
+function pickEditIcon(icon){
+  editIcon=icon;
+  document.getElementById('edit-icon-disp').textContent=icon;
+  document.querySelectorAll('#edit-icon-picker .icon-opt').forEach(el=>el.classList.toggle('sel',el.textContent===icon));
+}
+function saveEditCat(id){
+  const name=document.getElementById('edit-cat-name').value.trim();if(!name)return;
+  const cat=CATS.find(c=>c.id===id);
+  if(cat){cat.label=name;if(editIcon)cat.icon=editIcon;}
+  editingCatId=null;editIcon=null;
+  buildCatTabs();buildFormCatChips();renderCatMgr();saveToStorage();render();
+}
+function delCat(id){
+  const cat=CATS.find(c=>c.id===id);if(!cat)return;
+  const cnt=entries.filter(e=>e.category===id).length;
+  const extra=cnt>0?`<br><span style="color:var(--yellow)">${cnt} 件のエントリが「カテゴリなし」に移動されます。</span>`:'';
+  showConfirm(
+    `カテゴリ「<strong style="color:var(--text)">${esc(cat.label)}</strong>」を削除しますか？${extra}`,
+    ()=>{
+      if(cnt>0)entries=entries.map(e=>e.category===id?{...e,category:'none'}:e);
+      CATS=CATS.filter(c=>c.id!==id);
+      if(activeCat===id)activeCat='all';
+      buildCatTabs();buildFormCatChips();renderCatMgr();saveToStorage();render();
+    }
+  );
+}
+
+// ====== ADD CATEGORY ======
+function buildIconPicker(){
+  newIcon='🏷️';document.getElementById('new-icon-preview').textContent=newIcon;
+  document.getElementById('icon-picker').innerHTML=ICONS.map(ic=>`
+    <div class="icon-opt${ic===newIcon?' sel':''}" onclick="pickNewIcon('${ic}')">${ic}</div>`).join('');
+}
+function pickNewIcon(icon){
+  newIcon=icon;document.getElementById('new-icon-preview').textContent=icon;
+  document.querySelectorAll('#icon-picker .icon-opt').forEach(el=>el.classList.toggle('sel',el.textContent===icon));
+}
+function addCategory(){
+  const name=document.getElementById('new-cat-name').value.trim();if(!name)return;
+  const id='c'+Date.now();
+  CATS.push({id,label:name,icon:newIcon,fixed:false});
+  document.getElementById('new-cat-name').value='';
+  buildIconPicker();buildCatTabs();buildFormCatChips();renderCatMgr();saveToStorage();render();
+}
+
+// ====== GENERATOR ======
+function openGenModal(){regenPassword();document.getElementById('gen-modal').classList.add('open');}
+function regenPassword(){
+  const len=parseInt(document.getElementById('gen-length').value)||16;
+  const pw=genPw(len,genOpts);
+  document.getElementById('gen-pw-text').textContent=pw;
+  document.getElementById('gen-strength-bar').innerHTML=sbar(pw);
+  const btn=document.getElementById('gen-copy-btn');btn.textContent='⎘';btn.classList.remove('copied');
+}
+function onGenChange(){document.getElementById('gen-len-label').textContent=document.getElementById('gen-length').value;regenPassword();}
+function toggleOpt(k){genOpts[k]=!genOpts[k];document.getElementById('opt-'+k).classList.toggle('active',genOpts[k]);regenPassword();}
+function copyGen(){
+  const pw=document.getElementById('gen-pw-text').textContent;
+  navigator.clipboard.writeText(pw).then(()=>{
+    const btn=document.getElementById('gen-copy-btn');btn.textContent='✓';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='⎘';btn.classList.remove('copied');},1500);
+  });
+}
+
+// ====== MASTER PASSWORD CHANGE ======
+let pwcStep=1;
+function openPwChangeModal(){
+  pwcStep=1;
+  ['pwc-current','pwc-new','pwc-confirm'].forEach(id=>document.getElementById(id).value='');
+  ['pwc-current-error','pwc-new-error','pwc-match-msg','pwc-strength'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('pwc-step1').style.display='block';
+  document.getElementById('pwc-step2').style.display='none';
+  document.getElementById('pwc-step3').style.display='none';
+  document.getElementById('pwc-next-btn').textContent='次へ →';
+  pwcUpdateStepIndicator(1);
+  document.getElementById('pw-change-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('pwc-current').focus(),100);
+}
+function pwcUpdateStepIndicator(step){
+  const active='background:rgba(176,110,243,0.15);color:var(--purple);border:1px solid rgba(176,110,243,0.3);';
+  const done='background:rgba(163,230,53,0.1);color:var(--green);border:1px solid rgba(163,230,53,0.2);';
+  const idle='background:var(--bg3);color:var(--muted);border:1px solid var(--border);';
+  document.getElementById('pwc-step1-ind').style.cssText+= step===1?active:done;
+  document.getElementById('pwc-step2-ind').style.cssText+= step===2?active:step>2?done:idle;
+  document.getElementById('pwc-step3-ind').style.cssText+= step===3?active:idle;
+}
+function pwcNext(){
+  if(pwcStep===1){
+    const cur=document.getElementById('pwc-current').value;
+    if(cur!==masterPassword){
+      document.getElementById('pwc-current-error').style.display='block';
+      document.getElementById('pwc-current').classList.add('error');
+      setTimeout(()=>document.getElementById('pwc-current').classList.remove('error'),400);
+      return;
+    }
+    pwcStep=2;
+    document.getElementById('pwc-step1').style.display='none';
+    document.getElementById('pwc-step2').style.display='block';
+    pwcUpdateStepIndicator(2);
+    setTimeout(()=>document.getElementById('pwc-new').focus(),100);
+  } else if(pwcStep===2){
+    const nv=document.getElementById('pwc-new').value;
+    if(!nv){document.getElementById('pwc-new-error').style.display='block';return;}
+    pwcStep=3;
+    document.getElementById('pwc-step2').style.display='none';
+    document.getElementById('pwc-step3').style.display='block';
+    document.getElementById('pwc-next-btn').textContent='変更する ✓';
+    pwcUpdateStepIndicator(3);
+    setTimeout(()=>document.getElementById('pwc-confirm').focus(),100);
+  } else if(pwcStep===3){
+    const nv=document.getElementById('pwc-new').value;
+    const cv=document.getElementById('pwc-confirm').value;
+    if(nv!==cv){
+      document.getElementById('pwc-match-msg').style.display='block';
+      document.getElementById('pwc-match-msg').innerHTML='<span style="color:var(--pink)">⚠ パスワードが一致しません</span>';
+      document.getElementById('pwc-confirm').classList.add('error');
+      setTimeout(()=>document.getElementById('pwc-confirm').classList.remove('error'),400);
+      return;
+    }
+    masterPassword=nv;
+    saveToStorage(); // 新パスワードで再暗号化して保存
+    closeModal('pw-change-modal');
+    showToast('🔑 マスターパスワードを変更しました');
+  }
+}
+function pwcClearError(){
+  document.getElementById('pwc-current-error').style.display='none';
+}
+function pwcUpdateStrength(){
+  const pw=document.getElementById('pwc-new').value;
+  document.getElementById('pwc-new-error').style.display='none';
+  const el=document.getElementById('pwc-strength');
+  if(!pw){el.style.display='none';return;}
+  el.style.display='block';el.innerHTML=sbar(pw);
+}
+function pwcCheckMatch(){
+  const nv=document.getElementById('pwc-new').value;
+  const cv=document.getElementById('pwc-confirm').value;
+  const msg=document.getElementById('pwc-match-msg');
+  if(!cv){msg.style.display='none';return;}
+  msg.style.display='block';
+  msg.innerHTML=nv===cv
+    ?'<span style="color:var(--green)">✓ 一致しています</span>'
+    :'<span style="color:var(--pink)">⚠ パスワードが一致しません</span>';
+}
+function togglePwcVis(inputId,btn){
+  const inp=document.getElementById(inputId);
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  btn.textContent=show?'🙈':'👁';
+}
+// Enter key support in pw change modal
+['pwc-current','pwc-new','pwc-confirm'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')pwcNext();});
+});
+
+// ====== TOAST ======
+function showToast(msg){
+  const t=document.createElement('div');
+  t.innerHTML=msg;
+  t.style.cssText='position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#1a2e1a;border:1px solid rgba(163,230,53,0.3);color:var(--green);padding:12px 24px;border-radius:10px;font-size:14px;z-index:999;animation:fadeUp .3s ease;white-space:nowrap;font-family:var(--fd);';
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2800);
+}
+
+// ====== CUSTOM CONFIRM ======
+let _confirmCallback=null;
+function showConfirm(msg,cb){
+  _confirmCallback=cb;
+  document.getElementById('confirm-msg').innerHTML=msg;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function confirmOk(){
+  document.getElementById('confirm-overlay').classList.remove('open');
+  if(_confirmCallback){_confirmCallback();_confirmCallback=null;}
+}
+function confirmCancel(){
+  document.getElementById('confirm-overlay').classList.remove('open');
+  _confirmCallback=null;
+}
+
+// ====== EVENT DELEGATION for cat manager ======
+document.getElementById('cmgr-list').addEventListener('click',function(e){
+  const btn=e.target.closest('[data-action]');
+  if(!btn)return;
+  const action=btn.dataset.action;
+  const id=btn.dataset.id;
+  const icon=btn.dataset.icon;
+  if(action==='edit-cat')startEditCat(id);
+  else if(action==='del-cat')delCat(id);
+  else if(action==='save-cat')saveEditCat(id);
+  else if(action==='cancel-cat')cancelEditCat();
+  else if(action==='edit-icon')pickEditIcon(icon);
+});
+
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.overlay').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');}));
+</script>
+</body>
+</html>
